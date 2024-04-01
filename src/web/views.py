@@ -11,42 +11,48 @@ from .recommendation import Myrecommend
 import numpy as np 
 import pandas as pd
 
-
 # for recommendation
 def recommend(request):
-	if not request.user.is_authenticated:
-		return redirect("login")
-	if not request.user.is_active:
-		raise Http404
-	df=pd.DataFrame(list(Myrating.objects.all().values()))
-	nu=df.user_id.unique().shape[0]
-	current_user_id= request.user.id
-	# if new user not rated any movie
-	if current_user_id>nu:
-		movie=Movie.objects.get(id=15)
-		q=Myrating(user=request.user,movie=movie,rating=0)
-		q.save()
+    if not request.user.is_authenticated:
+        return redirect("login")
+    if not request.user.is_active:
+        raise Http404
+    df = pd.DataFrame(list(Myrating.objects.all().values()))
+    nu = df.user_id.unique().shape[0]
+    current_user_id = request.user.id
+    # if new user not rated any movie
+    if current_user_id > nu:
+        movie = Movie.objects.get(id=15)
+        q = Myrating(user=request.user, movie=movie, rating=0)
+        q.save()
 
-	print("Current user id: ",current_user_id)
-	prediction_matrix,Ymean = Myrecommend()
-	my_predictions = prediction_matrix[:,current_user_id-1]+Ymean.flatten()
-	pred_idxs_sorted = np.argsort(my_predictions)
-	pred_idxs_sorted[:] = pred_idxs_sorted[::-1]
-	pred_idxs_sorted=pred_idxs_sorted+1
-	print(pred_idxs_sorted)
-	preserved = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(pred_idxs_sorted)])
-	movie_list=list(Movie.objects.filter(id__in = pred_idxs_sorted,).order_by(preserved)[:10])
-	return render(request,'web/recommend.html',{'movie_list':movie_list})
+    print("Current user id: ", current_user_id)
+    prediction_matrix, Ymean = Myrecommend()
+    my_predictions = prediction_matrix[:, current_user_id - 1] + Ymean.flatten()
+    pred_idxs_sorted = np.argsort(my_predictions)
+    pred_idxs_sorted[:] = pred_idxs_sorted[::-1]
+    pred_idxs_sorted = pred_idxs_sorted + 1
+    print(pred_idxs_sorted)
+    preserved = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(pred_idxs_sorted)])
+    
+    # List of movie IDs you want to exclude
+    excluded_movie_ids = [18, 11, 93, 55, 63]
+    
+    # Exclude movies with the specified IDs
+    movie_list = list(Movie.objects.filter(id__in=pred_idxs_sorted).exclude(id__in=excluded_movie_ids).order_by(preserved)[:10])
+    return render(request, 'web/recommend.html', {'movie_list': movie_list})
 
 
 # List view
 def index(request):
-	movies = Movie.objects.all()
-	query  = request.GET.get('q')
-	if query:
-		movies = Movie.objects.filter(Q(title__icontains=query)).distinct()
-		return render(request,'web/list.html',{'movies':movies})
-	return render(request,'web/list.html',{'movies':movies})
+    movies = Movie.objects.all()
+    query = request.GET.get('q')
+    excluded_movie_ids = [18, 11, 93, 55, 63]
+    if query:
+        movies = Movie.objects.filter(Q(title__icontains=query)).exclude(id__in=excluded_movie_ids).distinct()
+    else:
+        movies = Movie.objects.exclude(id__in=excluded_movie_ids)
+    return render(request,'web/list.html',{'movies':movies})
 
 
 # detail view
